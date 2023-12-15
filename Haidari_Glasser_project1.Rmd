@@ -1,0 +1,350 @@
+---
+title: "CMDA-4654 - Intermediate Data Analytics and ML"
+subtitle: "Project 1"
+author: "Ali Haidari, Cassey Glasser"
+date: "October 30th 2022"
+output:
+  pdf_document:
+    highlight: haddock
+keep_tex: no
+number_sections: no
+html_document:
+  df_print: paged
+geometry: margin = 0.5in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{wrapfig}
+- \usepackage{float}
+- \usepackage{colortbl}
+- \usepackage{pdflscape}
+- \usepackage{tabu}
+- \usepackage{threeparttable}
+- \usepackage{threeparttablex}
+- \usepackage[normalem]{ulem}
+- \usepackage{makecell}
+- \usepackage{xcolor}
+editor_options:
+  chunk_output_type: console
+documentclass: article
+urlcolor: blue
+---
+  
+<!-- The above is set to automatically compile to a .pdf file.   -->
+<!-- It will only succeed if LaTeX is installed. -->
+  
+<!-- If you absolutely can't get LaTeX installed and/or working, then you can compile to a .html first,  -->
+<!-- by clicking on the arrow button next to knit and selecting Knit to HTML. -->
+
+<!-- You must then print you .html file to a .pdf by using first opening it in a web browser and then printing to a .pdf -->
+
+
+```{r setup, include=FALSE}
+# This is the setup chunk
+#  Here you can set global options for the entire document
+
+library(knitr) # I recommend doing this here
+
+# Although you can call functions from a library using the following notation
+#  without loading the entire library.
+knitr::opts_chunk$set(echo = TRUE, 
+                      comment = NA, # Required
+                      fig.path = "./figures/",  # Store all figures here in relative path (make the folder first)
+                      fig.align = "center",
+                      fig.width = 7,
+                      fig.height = 7,
+                      message = FALSE, # Turn off load messages
+                      warning = FALSE # Turn off warnings
+                      )
+
+```
+
+\clearpage
+
+```{r include=FALSE}
+# You should not echo this chunk.
+# include=FALSE does more than echo=FALSE, it actually does: echo=FALSE, results='hide', message=FALSE, warning=FALSE, fig.show='hide'
+
+# You should set your working directory at the very beginning of your R Markdown file
+setwd("~/Documents/CMDA 4654 - Intermediate Data Analytics and ML")
+# In linux ~/ is shorthand for /home/username/
+# You should type things out properly for your system
+# Mac: /Users/username/Documents/CMDA4654/Lectures/Lecture_03/.../
+# Windows: C:/Users/username/Documents/etc/Lecture/Lecture_03/.../
+
+
+```
+
+<!-- ---------------------------------------------------------------------------------------------------- -->
+<!-- ---------------- Homework Problems start below these lines ----------------------------------------- -->
+<!-- ---------------------------------------------------------------------------------------------------- -->
+
+# Problem 1
+First consider the ozone dataset, see Canvas for the ozone.RData file.
+
+## Part a
+Fit polynomials of different degrees between 1 and 6 with ozone being regressed upon temperature. Which polynomial fit appears to work the best?
+```{r echo=F, out.width='65%'}
+#load in data
+load("ozone.RData")
+#load in custom function
+source("Haidari_Glasser_project1.R")
+ozone_dat <- ozone
+degree_list <- seq(1:6)
+degree_str_list <- c()
+plot(ozone ~ temperature, data=ozone,
+     main = 'Ozone plotted against Temperature',
+     pch =20, cex = 0.8)
+#for each degree check which polynomial model offers best fit to data
+for (i in degree_list){
+  poly_lm_fit <- lm(ozone ~ poly(temperature, degree = i, raw = T), data = ozone_dat)
+  predicted_fit <- predict(poly_lm_fit)
+  j <- order(ozone_dat$temperature)
+  lines(ozone_dat$temperature[j], predicted_fit[j], 
+        col = i, lwd = 1.5)
+  degree_str_list[i] <- paste0('degree ', toString(degree_list[i]))
+}
+legend("topleft", legend = degree_str_list,
+       lty = 1, col = degree_list, cex = 0.5)
+```
+
+We can see the best visual fit seems to be a degree six polynomial 
+
+## Part b
+Use your function to determine LOESS regression fits on the data. Use span = 0.25 to 0.75 with steps of 0.05. Do this for both degree = 1 and degree = 2. List all of the results in a table. Plot the three “best” degree = 1 and three “best” degree = 2 fits that you determined, make sure to put the appropriate span in the title for each plot (there should be a total of 6 plots). You determined the “best” by comparing the residual standard errors. However if you visually inspect the best compared to the 2nd and 3rd best fits, do you feel that you may have over-fit the data?
+```{r echo=F, out.width='60%'}
+span_list <- seq(0.25, 0.75, 0.05)
+degree_1_sse_list <- c()
+degree_2_sse_list <- c()
+for (i in span_list){
+  loess_fit_degree_1 <- myloess(x = ozone_dat$temperature, y = ozone_dat$ozone, 
+                              span = i, degree = 1, show.plot = F)
+  loess_fit_degree_2 <- myloess(x = ozone_dat$temperature, y = ozone_dat$ozone, 
+                              span = i, degree = 2, show.plot = F)
+  
+  degree_1_sse_list <- c(degree_1_sse_list, loess_fit_degree_1$SSE)
+  degree_2_sse_list <- c(degree_2_sse_list, loess_fit_degree_2$SSE)
+  #TODO fix the text in span
+  #text(0, 0, toString(span_list[i]))
+}
+
+#building table of results for loess regressions 
+temp_table <- data.frame(matrix(0, nrow = 22, ncol = 3)) 
+colnames(temp_table) <- c('degree', 'span', 'sse')
+temp_table[1:11, 1] <- rep(1, 11)
+temp_table[12:22, 1] <- rep(2, 11)
+temp_table[1:11, 2] <- span_list
+temp_table[12:22, 2] <- span_list
+temp_table[1:11, 3] <- degree_1_sse_list
+temp_table[12:22, 3] <- degree_2_sse_list
+
+#results as a table
+knitr::kable(temp_table, 'simple')
+
+#plotting best three spans for degree 1 myloess
+j <- order(ozone_dat$temperature)
+x <- 0
+for(i in c(0.25, 0.35, 0.40)){
+  x <- x + 1
+  myloess_fit_1 <- myloess(y = ozone_dat$ozone, x = ozone_dat$temperature, span = i, degree = 1) 
+  myloess_fit_1$loessplot
+  title(main='Ozone plotted against Temperature \n(degree 1 custom loess regression)')
+  span_str <- paste0('custom loess fit, span = ', toString(i))
+  legend('topleft', legend = span_str, col = 'red', lty = 1)
+}
+
+#plotting best three spans for degree 2 myloess
+for(i in c(0.25, 0.30, 0.35)){
+  x <- x + 1
+  myloess_fit_2 <- myloess(y = ozone_dat$ozone, x = ozone_dat$temperature, span = i, degree = 2) 
+  myloess_fit_2$loessplot
+  title(main='Ozone plotted against Temperature \n(degree 2 custom loess regression)')
+  span_str <- paste0('custom loess fit, span = ', toString(i))
+  legend('topleft', legend = span_str, lty = 1, col = 'red')
+}
+```
+
+Comparing the spans for degree 1 loess regression, we can see that the second and third best fits either overfit the extreme values and weigh them too highly when calcualting fitted values, or they underfit the values by avoiding the outliers entirely. This is similar for degree 2 loess regression. 
+
+## Part c
+Compare your results with that found from the built-in loess() function and your plots
+```{r echo=F, out.width='60%'}
+#plotting best three spans for degree 1 myloess
+j <- order(ozone_dat$temperature)
+x <- 0
+for(i in c(0.25, 0.35, 0.40)){
+  x <- x + 1
+  thatloess_fit_1<- loess(ozone ~ temperature, data = ozone_dat, span = i, degree= 1)
+  myloess_fit_1 <- myloess(y = ozone_dat$ozone, x = ozone_dat$temperature, span = i, degree = 1) 
+  myloess_fit_1$loessplot
+  title(main='Ozone plotted against Temperature \n(degree 1 custom loess regression)')
+  lines(ozone_dat$temperature[j], predict(thatloess_fit_1)[j], col='blue')
+  custom_str <- paste0('custom loess fit, span = ', toString(i))
+  base_str <- paste0('base loess fit, span = ', toString(i))
+  legend('topleft', legend = c(custom_str, base_str), col = c('red', 'blue'), cex = 0.7, lty= 1)
+}
+
+#plotting best three spans for degree 2 myloess
+for(i in c(0.25, 0.30, 0.35)){
+  x <- x + 1
+  thatloess_fit_2<- loess(ozone ~ temperature, data = ozone_dat, span = i, degree= 2)
+  myloess_fit_2 <- myloess(y = ozone_dat$ozone, x = ozone_dat$temperature, span = i, degree = 2) 
+  myloess_fit_2$loessplot
+  title(main='Ozone plotted against Temperature \n(degree 2 custom loess regression)')
+  lines(ozone_dat$temperature[j], predict(thatloess_fit_2)[j], col = 'blue')
+  custom_str <- paste0('custom loess fit, span = ', toString(i))
+  base_str <- paste0('base loess fit, span = ', toString(i))
+  legend('topleft', legend = c(custom_str, base_str), col = c('red', 'blue'), cex = 0.7, lty= 1)
+}
+```
+
+We can see that the base loess fit and the custom loess fit offer very similar regression lines for the same values. Notably the base loess tries to fit the outliers slightly more, as seen in the blue spike in degree 2, span 0.35 loess regression. 
+
+# Problem 2
+Consider the mcycle dataset from the MASS library package.
+
+## Part a)
+Determine the three “best” degree = 1 and three “best” degree = 2 LOESS regression fits by finding the best span between 0.25 and 0.75 with steps of 0.05 for each degree. Report your answers in a table. Plot the three best first for both degree = 1 and degree = 2. Based upon a visual inspection, which models provide the “best” fit?
+```{r echo=F, out.width='60%'}
+library(MASS)
+data("mcycle")
+span_list <- seq(0.25, 0.75, 0.05)
+#plot(accel ~ times, data = mcycle, 
+     #main = 'Acceleration plotted against Times', pch = 20)
+degree_1_sse_list <- c()
+degree_2_sse_list <- c()
+for (i in span_list){
+  loess_fit_degree_1 <- myloess(x = mcycle$times, y = mcycle$accel, 
+                              span = i, degree = 1, show.plot = F)
+  loess_fit_degree_2 <- myloess(x =  mcycle$times, y = mcycle$accel, 
+                              span = i, degree = 2, show.plot = F)
+  degree_1_sse_list <- c(degree_1_sse_list, loess_fit_degree_1$SSE)
+  degree_2_sse_list <- c(degree_2_sse_list, loess_fit_degree_2$SSE)
+  #text(0, 0, toString(span_list[i]))
+}
+
+temp_table <- data.frame(matrix(0, nrow = 22, ncol = 3)) 
+colnames(temp_table) <- c('degree', 'span', 'sse')
+temp_table[1:11, 1] <- rep(1, 11)
+temp_table[12:22, 1] <- rep(2, 11)
+temp_table[1:11, 2] <- span_list
+temp_table[12:22, 2] <- span_list
+temp_table[1:11, 3] <- degree_1_sse_list
+temp_table[12:22, 3] <- degree_2_sse_list
+
+knitr::kable(temp_table, 'simple')
+
+#plotting best three spans for degree 1 myloess
+j <- order(mcycle$times)
+x <- 0
+for(i in c(0.30, 0.25, 0.35)){
+  x <- x + 1
+  myloess_fit_1 <- myloess(y = mcycle$accel, x = mcycle$times, span = i, degree = 1) 
+  myloess_fit_1$loessplot
+  title(main='Acceleartion plotted against Times \n(degree 1 custom loess regression)')
+  span_str <- paste0('custom loess fit, span = ', toString(i))
+  legend('topleft', legend = span_str, col = 'red', lty = 1)
+}
+
+#plotting best three spans for degree 2 myloess
+for(i in c(0.30, 0.35, 0.50)){
+  x <- x + 1
+  myloess_fit_2 <- myloess(y = mcycle$accel, x = mcycle$times, span = i, degree = 2) 
+  myloess_fit_2$loessplot
+  title(main='Acceleartion plotted against Times \n(degree 2 custom loess regression)')
+  span_str <- paste0('custom loess fit, span = ', toString(i))
+  legend('topleft', legend = span_str, lty = 1, col = 'red')
+}
+```
+
+Based upon solely visual inspection the degree 2, span 0.3 offers the best fit to the data with a smooth regression line capturing most points within the data, curiously the degree 1, span 0.3 offers a more minimized SSE value indicating a potentially better fit to the data.
+
+## Part b
+Compare your results with that found from the built-in loess() function and your plots
+```{r echo=F, out.width='60%'}
+#plotting best three spans for degree 1 myloess
+j <- order(mcycle$times)
+x <- 0
+for(i in c(0.30, 0.25, 0.35)){
+  x <- x + 1
+  myloess_fit_1 <- myloess(y = mcycle$accel, x = mcycle$times, span = i, degree = 1) 
+  thatloess_fit_1 <- loess(accel ~ times, data = mcycle, span = i, degree = 1)
+  myloess_fit_1$loessplot
+  title(main='Acceleartion plotted against Times \n(degree 1 custom loess regression)')
+  lines(mcycle$times[j], predict(thatloess_fit_1)[j], col = 'blue')
+  custom_str <- paste0('custom loess fit, span = ', toString(i))
+  base_str <- paste0('base loess fit, span = ', toString(i))
+  legend('topleft', legend = c(custom_str, base_str), col = c('red', 'blue'), cex = 0.7, lty= 1)
+}
+
+#plotting best three spans for degree 2 myloess
+for(i in c(0.30, 0.35, 0.50)){
+  x <- x + 1
+  myloess_fit_2 <- myloess(y = mcycle$accel, x = mcycle$times, span = i, degree = 2) 
+  thatloess_fit_2 <- loess(accel ~ times, data = mcycle, span = i, degree = 2)
+  myloess_fit_2$loessplot
+  title(main='Acceleartion plotted against Times \n(degree 2 custom loess regression)')
+  lines(mcycle$times[j], predict(thatloess_fit_1)[j], col = 'blue')
+  custom_str <- paste0('custom loess fit, span = ', toString(i))
+  base_str <- paste0('base loess fit, span = ', toString(i))
+  legend('topleft', legend = c(custom_str, base_str), col = c('red', 'blue'), cex = 0.7, lty= 1)
+}
+```
+
+Once again, the base loess function and custom loess function offer similar regression lines for the data. We see an almost exact overlayed regression in the degree 1, span 0.35 plot. However, base loess offers marginally different fits for degree 2 plots. 
+
+# Problem 3 
+Use your function on the Auto dataset from the ISLR library.
+
+## Part a
+Randomly split your data into two data frames. Use 70% of your data for the training data and 30% for the testing data.
+```{r echo=F, out.width='60%'}
+# Some pre-processing
+library(ISLR)
+source("Haidari_Glasser_project1.R")
+# Remove the name of the car model and change the origin to categorical with actual name
+Auto_new <- Auto[, -9]
+# Lookup table
+newOrigin <- c("USA", "European", "Japanese")
+Auto_new$origin <- factor(newOrigin[Auto_new$origin], newOrigin)
+#split into 70-30 training-testing split
+index <- sample(1:nrow(Auto_new), round(nrow(Auto_new) * 0.7))
+training_df <- Auto_new[index, 1:7]
+testing_df <- Auto_new[-index, 1:7]
+y_train_vec<- Auto_new[index, 8]
+y_test_vec <- Auto_new[-index, 8]
+#classifcaiton check
+k_list <- c(5, 10, 15)
+acc_list <- c()
+dw_acc_list <- c()
+for (k in k_list){
+  knn_obj <- mykNN(training_df, testing_df, y_train_vec, y_test_vec, k = k, weighted = F)
+  knn_dw <- mykNN(training_df, testing_df, y_train_vec, y_test_vec, k = k, weighted = T)
+  acc_list <- c(acc_list, knn_obj$accuracy)
+  dw_acc_list <- c(dw_acc_list, knn_dw$accuracy)
+}
+temp_table <- data.frame(k_list, acc_list, dw_acc_list)
+knitr::kable(temp_table, 'simple')
+plot(k_list, acc_list, pch = 20, main = "Accuracy of K-Nearest plotted against K")
+plot(k_list, dw_acc_list, pch = 20, main = "Accuracy of Distance Weighted \n K-Nearest plotted against K")
+```
+
+# Problem 4
+
+## Part a
+```{r}
+index <- sample(1:nrow(ozone_dat), round(nrow(ozone_dat) * (70/111)))
+training_df <- ozone_dat[index, 2:ncol(ozone_dat)]
+testing_df <- ozone_dat[-index, 2:ncol(ozone_dat)]
+y_train_vec<- ozone_dat[index, 1]
+y_test_vec <- ozone_dat[-index, 1]
+
+alt_k_list <- c(1, 3, 5, 10, 15)
+for (k in alt_k_list){
+  knn_reg <- mykNN(training_df, testing_df, y_train_vec, y_test_vec, weighted = F)
+}
+plot(temperature ~ ozone, data = ozone_dat, col = c(training_df, testing_df))
+knn_rtemp <- mykNN(training_df, testing_df, y_train_vec, y_test_vec, weighted = T)
+```
